@@ -59,6 +59,7 @@ Change Log:
 * (Get-AzureRmSubscription).SubscriptionName fails to provide the name property. Fixed by changing 'SubscriptionName' property to just 'Name'.
 * Review and test script with latest Azure module 4.3.1. Test OK.
 * Added two functions: Converted code for creating custom log and transcipt as new function & added another function to automatically download required GitHub repository files.
+* Extract downloaded DSC.zip file from GitHub to new directory named c:\deployment\DSC and remove original DSC.zip file.
 #>
 
 $errorActionPreference = [System.Management.Automation.ActionPreference]::Stop
@@ -112,13 +113,13 @@ function New-LogFile
     $logFile = "$scriptDir-LOG" + "-" + $startTime + ".log"
     $transcriptFile = "$scriptDir-TRANSCRIPT" + "-" + $startTime + ".log"
     $log = Join-Path -Path $logPath -ChildPath $logFile
-    $Transcript = Join-Path $logPath -ChildPath $transcriptFile
+    $transcript = Join-Path $logPath -ChildPath $transcriptFile
     # Create Log file
-    New-Item -Path $Log -ItemType File -Verbose
+    New-Item -Path $log -ItemType File -Verbose
     # Create Transcript file
-    New-Item -Path $Transcript -ItemType File -Verbose
+    New-Item -Path $transcript -ItemType File -Verbose
 
-    Start-Transcript -Path $Transcript -IncludeInvocationHeader -Append -Verbose
+    Start-Transcript -Path $transcript -IncludeInvocationHeader -Append -Verbose
 } #end function 
 
 function Get-GitHubRepositoryFile
@@ -179,7 +180,7 @@ function Get-GitHubRepositoryFile
 
     Begin
     {
-        Write-WithTime -Output "Downloading and installing" -Log $Log
+        # Write-WithTime -Output "Downloading and installing" -Log $Log
         $wc = New-Object System.Net.WebClient
         $rawGitHubUriPrefix = "https://raw.githubusercontent.com"
     } #end begin
@@ -187,10 +188,10 @@ function Get-GitHubRepositoryFile
     {
         foreach ($file in $files)
         {
-            Write-WithTime -Output "Processing $file..." -Log $log
+            # Write-WithTime -Output "Processing $file..." -Log $log
             # File download
             $uri = $rawGitHubUriPrefix, $owner, $repository, $branch, $file -Join "/"
-            Write-WithTime -Output "Attempting to download from $uri" -Log $log 
+            # Write-WithTime -Output "Attempting to download from $uri" -Log $log 
             $downloadTargetPath = Join-Path -Path $downloadTargetDirectory -ChildPath $file 
             $wc.DownloadFile($uri, $downloadTargetPath)
         } #end foreach
@@ -427,23 +428,48 @@ New-LogFile -scriptDir $scriptDirectory
  $repository = "AzurePowerShellSampleDeployment"
  $branch = "master"
  $deployPath = "c:\deployment"
+ 
+ $targetZipFile = Join-Path -Path $deployPath -ChildPath $filesToDownload[0] 
+ $manualDownloadMessage = "@
+1) Create an empty folder in the VM at the path C:\deployment
+2) Navigate to the following repository in GitHub. https://github.com/paulomarquesc/AzurePowerShellSampleDeployment 
+3) Copy the DSC.zip into the new C:\deployment directory.
+4) Copy the PowerShell-PoC-Environmet-Setup.ps1 script into a new directory named c:\scripts.
+5) Extract the DSC.zip file to the C:\deployment directory
+6) Remove the DSC.zip file from the C:\deployment directory, but leave the extracted DSC directory in place.
+@"
 
  If (-not(Test-Path -Path $deployPath))
  {
     New-Item -Path $deployPath -ItemType Directory -Force
  } #end if
 
- Write-WithTime -Output "Downloading required files from GitHub..." -Log $Log 
+ # Write-WithTime -Output "Downloading required files from GitHub..." -Log $Log 
  Get-GitHubRepositoryFile -Owner $owner -repository $repository -branch $branch -files $filesToDownload -downloadTargetDirectory $deployPath
-
- $targetZipFile = Join-Path -Path $deployPath -ChildPath $filesToDownload[0] 
 
  If (!(Test-Path -Path $targetZipFile))
  {
     Write-ToConsoleAndLog -Output "There was an error downloading file $filesToDownload[0]..." -Log
-    Write-ToConsoleAndLog -Output "Please download $filesToDownload[0] manually to $deployPath and press enter to continue..." -Log
+    Write-ToConsoleAndLog -Output "Please download $filesToDownload[0] manually to $deployPath and press enter to continue by following the instructions below" -Log
+    Write-ToConsoleAndLog -Output "" -Log $log
+    Write-ToConsoleAndLog -Output $manualDownloadMessage -Log $log
     pause
  } #end if
+
+ $zipFolderName = ($targetZipFile | Split-Path -Leaf).Split(".")[0]
+ $zipFolderPath = Join-Path $deployPath -ChildPath $zipFolderName
+ If (-not(Test-Path -Path $zipFolderPath))
+ {
+    New-Item -Path $zipFolderPath -ItemType Directory
+ } #end if 
+ Expand-Archive -Path $targetZipFile -DestinationPath $zipFolderPath
+
+If (Test-Path -Path $targetZipFile) 
+{
+    Remove-Item -Path $targetZipFile
+} #end if
+
+
 
 # Location Definition
 $westLocation = "westus"
