@@ -38,3 +38,5 @@ This sample script is part of a Microsoft Service called Fast Start for IaaS tha
 * Added #Requires -Version 5.0 to support new package management features, which will download required modules from www.powershellgallery.com
 * Added the requirement in the description to include the c:\deployment folder for DSC resources, package and artifacts
 * Review and test script with latest Azure PowerShell module 4.3.1. Test OK.
+* Added two functions: Converted code for creating custom log and transcipt as new function & added another function to automatically download required GitHub repository files.
+* Extract downloaded DSC.zip file from GitHub to new directory named c:\deployment\DSC and remove original DSC.zip file.
