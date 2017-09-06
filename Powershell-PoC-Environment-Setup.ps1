@@ -58,15 +58,148 @@ Change Log:
 * Adjusted indentation of loops and conditional blocks using tabs
 * (Get-AzureRmSubscription).SubscriptionName fails to provide the name property. Fixed by changing 'SubscriptionName' property to just 'Name'.
 * Review and test script with latest Azure module 4.3.1. Test OK.
+* Added two functions: Converted code for creating custom log and transcipt as new function & added another function to automatically download required GitHub repository files.
 #>
 
 $errorActionPreference = [System.Management.Automation.ActionPreference]::Stop
+
+#region LOGGING
+
+#endregion LOGGING
 
 #----------------------------------------------------------------------------------------------------------------------
 # Functions
 #----------------------------------------------------------------------------------------------------------------------
 
 #region FUNCTIONS
+
+function New-LogFile
+{
+<#
+.SYNOPSIS
+   Creates a custom log and transcript files.
+.DESCRIPTION
+   This function will create a custom log and transcript file for logging script activity at the users home path: $env:HOMEPATH + "\" <Name of script without *.ps1>
+.EXAMPLE
+   ./New-LogFile -scriptDir <Name of Script without *.ps1>
+    Author: Preston K. Parsard
+    REQUIREMENTS: 
+    NA
+.LINK
+    NA
+#>
+    [CmdletBinding(PositionalBinding=$false)]
+    param(
+        # Name of this script that will be used as a subdirectory to store logs and transcripts.
+        [Parameter(Mandatory=$true,
+                   HelpMessage = "Please enter the name of this script that will be used as a subdirectory to store logs and transcripts.")]
+        [ValidateNotNull()]
+        [ValidateNotNullOrEmpty()]
+        [string]$scriptDir
+    ) #end param
+
+    # Construct custom path for log files based on current user's $env:HOMEPATH directory for both the log and transcript files
+    $logPath = $env:HOMEPATH + "\" + $scriptDir
+    If (!(Test-Path $logPath))
+    {
+        New-Item -Path $logPath -ItemType Directory
+    } #End If
+
+    # Create both log and transcript files with time/date stamps included in their filenames
+    $startTime = (((get-date -format u).Substring(0,16)).Replace(" ", "-")).Replace(":","")
+    $24hrTime = $startTime.Substring(11,4)
+
+    $logFile = "$scriptDir-LOG" + "-" + $startTime + ".log"
+    $transcriptFile = "$scriptDir-TRANSCRIPT" + "-" + $startTime + ".log"
+    $log = Join-Path -Path $logPath -ChildPath $logFile
+    $Transcript = Join-Path $logPath -ChildPath $transcriptFile
+    # Create Log file
+    New-Item -Path $Log -ItemType File -Verbose
+    # Create Transcript file
+    New-Item -Path $Transcript -ItemType File -Verbose
+
+    Start-Transcript -Path $Transcript -IncludeInvocationHeader -Append -Verbose
+} #end function 
+
+function Get-GitHubRepositoryFile
+{
+<#
+.Synopsis
+   Download selected files from a Github repository to a local directory or share
+.DESCRIPTION
+   This function downloads a specified set of files from a Github repository to a local drive or share, which can include a *.zipped file
+.EXAMPLE
+   Get-GithubRepositoryFiles -Owner <Owner> -Repository <Repository> -Branch <Branch> -Files <Files[]> -DownloadTargetDirectory <DownloadTargetDirectory>
+.NOTES
+    Author: Preston K. Parsard; https://github.com/autocloudarc
+    REQUIREMENTS: 
+    1. The repository from which the script artifacts are downloaded must be public to avoid additional authentication requirements
+.LINK
+    http://windowsitpro.com/powershell/use-net-webclient-class-powershell-scripts-access-web-data
+    http://windowsitpro.com/site-files/windowsitpro.com/files/archive/windowsitpro.com/content/content/99043/listing_03.txt
+#>
+    [CmdletBinding()]
+    Param
+    (
+        # Please provide the repository owner
+        [Parameter(Mandatory=$true,
+                   Position=0)]
+        [ValidateNotNull()]
+        [ValidateNotNullOrEmpty()]
+        [string]$owner,
+
+        # Please provide the name of the repository
+        [Parameter(Mandatory=$true,
+                   Position=1)]
+        [ValidateNotNull()]
+        [ValidateNotNullOrEmpty()]
+        [string]$repository,
+
+        # Please provide a branch to download from
+        [Parameter(Mandatory=$false,
+                   Position=2)]
+        [ValidateNotNull()]
+        [ValidateNotNullOrEmpty()]
+        [string]$branch,
+
+        # Please provide the list of files to download
+        [Parameter(Mandatory=$true,
+                   Position=3)]
+        [ValidateNotNull()]
+        [ValidateNotNullOrEmpty()]
+        [string[]]$files,
+        
+        
+        # Please provide a local target path for the GitHub files and folders
+        [Parameter(Mandatory=$true,
+                   Position=4,
+                   HelpMessage = "Please provide a local target directory for the GitHub files and folders")]
+        [string]$downloadTargetDirectory
+    ) #end param
+
+    Begin
+    {
+        Write-WithTime -Output "Downloading and installing" -Log $Log
+        $wc = New-Object System.Net.WebClient
+        $rawGitHubUriPrefix = "https://raw.githubusercontent.com"
+    } #end begin
+    Process
+    {
+        foreach ($file in $files)
+        {
+            Write-WithTime -Output "Processing $file..." -Log $log
+            # File download
+            $uri = $rawGitHubUriPrefix, $owner, $repository, $branch, $file -Join "/"
+            Write-WithTime -Output "Attempting to download from $uri" -Log $log 
+            $downloadTargetPath = Join-Path -Path $downloadTargetDirectory -ChildPath $file 
+            $wc.DownloadFile($uri, $downloadTargetPath)
+        } #end foreach
+    } #end process
+    End
+    {
+    } #end end
+} #end function
+
 function Create-DSCPackage
 {
 	param
@@ -280,32 +413,41 @@ Add-AzureRmAccount
 # Start time so that total script execution time can be measured at script completion.
 $beginTimer = Get-Date -Verbose
 
+[string]$scriptName = $myInvocation.myCommand
+$scriptFileComponents = $scriptName.Split(".")
+[string]$scriptDirectory = $scriptFileComponents[0]
+
+# Create both log and transcript files to record script activities
+New-LogFile -scriptDir $scriptDirectory
+
+# Get GitHub files
+ [string[]]$filesToDownload = "DSC.zip"
+ 
+ $owner = "paulomarquesc"
+ $repository = "AzurePowerShellSampleDeployment"
+ $branch = "master"
+ $deployPath = "c:\deployment"
+
+ If (-not(Test-Path -Path $deployPath))
+ {
+    New-Item -Path $deployPath -ItemType Directory -Force
+ } #end if
+
+ Write-WithTime -Output "Downloading required files from GitHub..." -Log $Log 
+ Get-GitHubRepositoryFile -Owner $owner -repository $repository -branch $branch -files $filesToDownload -downloadTargetDirectory $deployPath
+
+ $targetZipFile = Join-Path -Path $deployPath -ChildPath $filesToDownload[0] 
+
+ If (!(Test-Path -Path $targetZipFile))
+ {
+    Write-ToConsoleAndLog -Output "There was an error downloading file $filesToDownload[0]..." -Log
+    Write-ToConsoleAndLog -Output "Please download $filesToDownload[0] manually to $deployPath and press enter to continue..." -Log
+    pause
+ } #end if
+
 # Location Definition
 $westLocation = "westus"
 $eastLocation = "eastus"
-
-# Construct custom path for log files based on current user's $env:HOMEPATH directory for both the log and transcript files
-$logDir = "PowerShellAzurePoC"
-$logPath = $env:HOMEPATH + "\" + $logDir
-If (!(Test-Path $logPath))
-{
-    New-Item -Path $logPath -ItemType Directory
-} #End If
-
-# Create both log and transcript files with time/date stamps included in their filenames
-$startTime = (((get-date -format u).Substring(0,16)).Replace(" ", "-")).Replace(":","")
-$24hrTime = $startTime.Substring(11,4)
-
-$logFile = "PowerShell-PoC-EnvSetup" + "-" + $startTime + ".log"
-$transcriptFile = "PowerShell-PoC-Transcript" + "-" + $startTime + ".log"
-$log = Join-Path -Path $logPath -ChildPath $logFile
-$Transcript = Join-Path $logPath -ChildPath $transcriptFile
-# Create Log file
-New-Item -Path $Log -ItemType File -Verbose
-# Create Transcript file
-New-Item -Path $Transcript -ItemType File -Verbose
-
-Start-Transcript -Path $Transcript -IncludeInvocationHeader -Append -Verbose
 
 # Create and populate prompts object with property-value pairs
 # PROMPTS (promptsObj)
