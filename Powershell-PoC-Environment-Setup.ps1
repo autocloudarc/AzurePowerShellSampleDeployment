@@ -60,6 +60,7 @@ Change Log:
 * Review and test script with latest Azure module 4.3.1. Test OK.
 * Added two functions: Converted code for creating custom log and transcipt as new function & added another function to automatically download required GitHub repository files.
 * Extract downloaded DSC.zip file from GitHub to new directory named c:\deployment\DSC and remove original DSC.zip file.
+* Remove New-Log file function and placed the code contents inline with main script due to scope issue.
 #>
 
 $errorActionPreference = [System.Management.Automation.ActionPreference]::Stop
@@ -73,54 +74,6 @@ $errorActionPreference = [System.Management.Automation.ActionPreference]::Stop
 #----------------------------------------------------------------------------------------------------------------------
 
 #region FUNCTIONS
-
-function New-LogFile
-{
-<#
-.SYNOPSIS
-   Creates a custom log and transcript files.
-.DESCRIPTION
-   This function will create a custom log and transcript file for logging script activity at the users home path: $env:HOMEPATH + "\" <Name of script without *.ps1>
-.EXAMPLE
-   ./New-LogFile -scriptDir <Name of Script without *.ps1>
-    Author: Preston K. Parsard
-    REQUIREMENTS: 
-    NA
-.LINK
-    NA
-#>
-    [CmdletBinding(PositionalBinding=$false)]
-    param(
-        # Name of this script that will be used as a subdirectory to store logs and transcripts.
-        [Parameter(Mandatory=$true,
-                   HelpMessage = "Please enter the name of this script that will be used as a subdirectory to store logs and transcripts.")]
-        [ValidateNotNull()]
-        [ValidateNotNullOrEmpty()]
-        [string]$scriptDir
-    ) #end param
-
-    # Construct custom path for log files based on current user's $env:HOMEPATH directory for both the log and transcript files
-    $logPath = $env:HOMEPATH + "\" + $scriptDir
-    If (!(Test-Path $logPath))
-    {
-        New-Item -Path $logPath -ItemType Directory
-    } #End If
-
-    # Create both log and transcript files with time/date stamps included in their filenames
-    $startTime = (((get-date -format u).Substring(0,16)).Replace(" ", "-")).Replace(":","")
-    $24hrTime = $startTime.Substring(11,4)
-
-    $logFile = "$scriptDir-LOG" + "-" + $startTime + ".log"
-    $transcriptFile = "$scriptDir-TRANSCRIPT" + "-" + $startTime + ".log"
-    $log = Join-Path -Path $logPath -ChildPath $logFile
-    $transcript = Join-Path $logPath -ChildPath $transcriptFile
-    # Create Log file
-    New-Item -Path $log -ItemType File -Verbose
-    # Create Transcript file
-    New-Item -Path $transcript -ItemType File -Verbose
-
-    Start-Transcript -Path $transcript -IncludeInvocationHeader -Append -Verbose
-} #end function 
 
 function Get-GitHubRepositoryFile
 {
@@ -414,12 +367,32 @@ Add-AzureRmAccount
 # Start time so that total script execution time can be measured at script completion.
 $beginTimer = Get-Date -Verbose
 
+# Create both log and transcript files to record script activities
 [string]$scriptName = $myInvocation.myCommand
 $scriptFileComponents = $scriptName.Split(".")
-[string]$scriptDirectory = $scriptFileComponents[0]
+$logDirectory = $scriptFileComponents[0]
 
-# Create both log and transcript files to record script activities
-New-LogFile -scriptDir $scriptDirectory
+# Construct custom path for log files based on current user's $env:HOMEPATH directory for both the log and transcript files
+$logPath = $env:HOMEPATH + "\" + $logDirectory
+If (!(Test-Path $logPath))
+{
+    New-Item -Path $logPath -ItemType Directory
+} #End If
+
+# Create both log and transcript files with time/date stamps included in their filenames
+$startTime = (((get-date -format u).Substring(0,16)).Replace(" ", "-")).Replace(":","")
+$24hrTime = $startTime.Substring(11,4)
+
+$logFile = "$scriptDir-LOG" + "-" + $startTime + ".log"
+$transcriptFile = "$scriptDir-TRANSCRIPT" + "-" + $startTime + ".log"
+$log = Join-Path -Path $logPath -ChildPath $logFile
+$transcript = Join-Path $logPath -ChildPath $transcriptFile
+# Create Log file
+New-Item -Path $log -ItemType File -Verbose
+# Create Transcript file
+New-Item -Path $transcript -ItemType File -Verbose
+
+Start-Transcript -Path $transcript -IncludeInvocationHeader -Append -Verbose
 
 # Get GitHub files
  [string[]]$filesToDownload = "DSC.zip"
@@ -469,8 +442,6 @@ If (Test-Path -Path $targetZipFile)
     Remove-Item -Path $targetZipFile
 } #end if
 
-
-
 # Location Definition
 $westLocation = "westus"
 $eastLocation = "eastus"
@@ -504,7 +475,7 @@ Do
 {
     # Subscription name
     $defaultSubscription = (Get-AzureRmSubscription).Name
-    Write-ToConsoleAndLog -Output "Default subsriptions found are: $defaultSubscription" -Log $Log
+    Write-ToConsoleAndLog -Output "Default subsriptions found are: $defaultSubscription" -Log $log
     $subscriptionPrompt = "Please enter your subscription name "
     Write-ToLogOnly -Output $subscriptionPrompt -Log $Log
     [string] $Subscription = Read-Host $subscriptionPrompt
