@@ -41,3 +41,4 @@ This sample script is part of a Microsoft Service called Fast Start for IaaS tha
 * Added two functions: Converted code for creating custom log and transcipt as new function & added another function to automatically download required GitHub repository files.
 * Extract downloaded DSC.zip file from GitHub to new directory named c:\deployment\DSC and remove original DSC.zip file.
 * Remove New-Log file function and placed the code contents inline with main script due to scope issue.
+* Use -Force parameter for Expand-Archive for DSC.zip due to: <[Write-Error], IOException> terminating error.
