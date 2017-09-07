@@ -61,6 +61,7 @@ Change Log:
 * Added two functions: Converted code for creating custom log and transcipt as new function & added another function to automatically download required GitHub repository files.
 * Extract downloaded DSC.zip file from GitHub to new directory named c:\deployment\DSC and remove original DSC.zip file.
 * Remove New-Log file function and placed the code contents inline with main script due to scope issue.
+* Use -Force parameter for Expand-Archive for DSC.zip due to: <[Write-Error], IOException> terminating error.
 #>
 
 $errorActionPreference = [System.Management.Automation.ActionPreference]::Stop
@@ -418,7 +419,7 @@ Start-Transcript -Path $transcript -IncludeInvocationHeader -Append -Verbose
  } #end if
 
  # Write-WithTime -Output "Downloading required files from GitHub..." -Log $Log 
- Get-GitHubRepositoryFile -Owner $owner -repository $repository -branch $branch -files $filesToDownload -downloadTargetDirectory $deployPath
+ Get-GitHubRepositoryFile -Owner $owner -repository $repository -branch $branch -files $filesToDownload -downloadTargetDirectory $deployPath -Verbose
 
  If (!(Test-Path -Path $targetZipFile))
  {
@@ -435,7 +436,7 @@ Start-Transcript -Path $transcript -IncludeInvocationHeader -Append -Verbose
  {
     New-Item -Path $zipFolderPath -ItemType Directory
  } #end if 
- Expand-Archive -Path $targetZipFile -DestinationPath $zipFolderPath
+ Expand-Archive -Path $targetZipFile -DestinationPath $zipFolderPath -Force -Verbose
 
 If (Test-Path -Path $targetZipFile) 
 {
