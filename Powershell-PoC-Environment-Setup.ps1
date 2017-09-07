@@ -62,6 +62,7 @@ Change Log:
 * Extract downloaded DSC.zip file from GitHub to new directory named c:\deployment\DSC and remove original DSC.zip file.
 * Remove New-Log file function and placed the code contents inline with main script due to scope issue.
 * Use -Force parameter for Expand-Archive for DSC.zip due to: <[Write-Error], IOException> terminating error.
+* Script name truncated from log and transcript filenames. [fixed]
 #>
 
 $errorActionPreference = [System.Management.Automation.ActionPreference]::Stop
@@ -384,8 +385,8 @@ If (!(Test-Path $logPath))
 $startTime = (((get-date -format u).Substring(0,16)).Replace(" ", "-")).Replace(":","")
 $24hrTime = $startTime.Substring(11,4)
 
-$logFile = "$scriptDir-LOG" + "-" + $startTime + ".log"
-$transcriptFile = "$scriptDir-TRANSCRIPT" + "-" + $startTime + ".log"
+$logFile = "$logDirectory-LOG" + "-" + $startTime + ".log"
+$transcriptFile = "$logDirectory-TRANSCRIPT" + "-" + $startTime + ".log"
 $log = Join-Path -Path $logPath -ChildPath $logFile
 $transcript = Join-Path $logPath -ChildPath $transcriptFile
 # Create Log file
